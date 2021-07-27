@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 #[allow(dead_code)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FailureType {
     Validation,
     Authentication,
@@ -10,6 +11,7 @@ pub enum FailureType {
     Unknown,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Failure {
     pub error_type: FailureType,
     pub message: String,

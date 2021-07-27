@@ -11,14 +11,22 @@ use actix_web::{
 use crate::{
     common::failure::failure_handler::handle_failure,
     features::profile::{
-        infrastructure::profile_repository_impl::ProfileRepositoryImpl,
+        infrastructure::{
+            profile_repository_impl::ProfileRepositoryImpl,
+            verification_keys_storage_impl::VerificationKeysStorageImpl,
+        },
         interactors::profile_interactor::ProfileInteractor,
+        utils::code_generator::VerificationCodeGenerator,
     },
 };
 
 use super::dtos::create_user_dto::CreateUserDto;
 
-type Interceptor = ProfileInteractor<ProfileRepositoryImpl>;
+type Interceptor = ProfileInteractor<
+    ProfileRepositoryImpl,
+    VerificationCodeGenerator,
+    VerificationKeysStorageImpl,
+>;
 
 pub fn configure_profile_controller(interactor: Arc<Interceptor>, config: &mut ServiceConfig) {
     config.service(

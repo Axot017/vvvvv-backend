@@ -18,6 +18,7 @@ impl ProfileRepositoryImpl {
 #[async_trait]
 impl ProfileRepository for ProfileRepositoryImpl {
     async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure> {
+        let _ = user;
         Ok(())
     }
 }
