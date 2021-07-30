@@ -1,11 +1,13 @@
 use crate::{
     common::failure::domain::failure::Failure,
-    features::profile::domain::create_user_model::CreateUserModel,
+    features::profile::domain::{create_user_model::CreateUserModel, user::User},
 };
 use async_trait::async_trait;
 
 #[async_trait]
 pub trait ProfileRepository {
+    async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
+
     async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure>;
 }
 
@@ -39,10 +41,10 @@ pub struct ProfileInteractor<T, Y, U, I> {
 
 impl<T, Y, U, I> ProfileInteractor<T, Y, U, I>
 where
-    T: 'static + ProfileRepository,
-    Y: 'static + CodeGenerator,
-    U: 'static + VerificationKeysStorage,
-    I: 'static + VerificationMailer,
+    T: ProfileRepository,
+    Y: CodeGenerator,
+    U: VerificationKeysStorage,
+    I: VerificationMailer,
 {
     pub fn new(
         profile_repository: T,
@@ -63,6 +65,10 @@ where
         self.verify_email(&user.email).await
     }
 
+    pub async fn get_user(&self, uuid: &String) -> Result<User, Failure> {
+        self.profile_repository.get_user_by_uuid(uuid).await
+    }
+
     async fn verify_email(&self, email: &String) -> Result<(), Failure> {
         let code = self.code_generator.generate().await;
         self.verification_keys_storage
@@ -74,8 +80,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::clone;
-
+    use chrono::Utc;
     use mockall::predicate::*;
     use mockall::*;
 
@@ -113,6 +118,8 @@ mod test {
         #[async_trait]
         impl ProfileRepository for ProfileRespository {
             async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure>;
+
+            async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
         }
     }
 
@@ -123,6 +130,31 @@ mod test {
         impl VerificationMailer for VerificationMailer {
             async fn send_verification_code(&self, email: &String, code: &String) -> Result<(), Failure>;
         }
+    }
+
+    #[actix_rt::test]
+    async fn should_return_user() {
+        let mut repo = MockProfileRespository::new();
+        let storage = MockVerificationKeysStorage::new();
+        let code_generator = MockCodeGenerator::new();
+        let mailer = MockVerificationMailer::new();
+        let user = User {
+            avatar_code: None,
+            uuid: "test_uuid".to_string(),
+            email: "test_email".to_string(),
+            username: "test_username".to_string(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let user_clone = user.clone();
+        repo.expect_get_user_by_uuid()
+            .with(predicate::eq((&user).uuid.clone()))
+            .return_once(|_| Ok(user_clone));
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+
+        let result = interactor.get_user(&user.uuid).await;
+
+        assert_eq!(result, Ok(user));
     }
 
     #[actix_rt::test]
