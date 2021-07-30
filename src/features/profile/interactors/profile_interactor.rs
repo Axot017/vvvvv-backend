@@ -10,6 +10,11 @@ pub trait ProfileRepository {
 }
 
 #[async_trait]
+pub trait VerificationMailer {
+    async fn send_verification_code(&self, email: &String, code: &String) -> Result<(), Failure>;
+}
+
+#[async_trait]
 pub trait VerificationKeysStorage {
     async fn save_verification_code(
         &self,
@@ -25,41 +30,52 @@ pub trait CodeGenerator {
     async fn generate(&self) -> String;
 }
 
-pub struct ProfileInteractor<T, Y, U> {
+pub struct ProfileInteractor<T, Y, U, I> {
     profile_repository: T,
     code_generator: Y,
     verification_keys_storage: U,
+    mailer: I,
 }
 
-impl<T, Y, U> ProfileInteractor<T, Y, U>
+impl<T, Y, U, I> ProfileInteractor<T, Y, U, I>
 where
     T: 'static + ProfileRepository,
     Y: 'static + CodeGenerator,
     U: 'static + VerificationKeysStorage,
+    I: 'static + VerificationMailer,
 {
     pub fn new(
         profile_repository: T,
         code_generator: Y,
         verification_keys_storage: U,
-    ) -> ProfileInteractor<T, Y, U> {
+        mailer: I,
+    ) -> ProfileInteractor<T, Y, U, I> {
         ProfileInteractor {
             profile_repository,
             code_generator,
             verification_keys_storage,
+            mailer,
         }
     }
 
     pub async fn create_user(&self, user: &CreateUserModel) -> Result<(), Failure> {
         self.profile_repository.save_user(user).await?;
+        self.verify_email(&user.email).await
+    }
+
+    async fn verify_email(&self, email: &String) -> Result<(), Failure> {
         let code = self.code_generator.generate().await;
         self.verification_keys_storage
-            .save_verification_code(&user.email, &code)
-            .await
+            .save_verification_code(email, &code)
+            .await?;
+        self.mailer.send_verification_code(email, &code).await
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::clone;
+
     use mockall::predicate::*;
     use mockall::*;
 
@@ -100,11 +116,61 @@ mod test {
         }
     }
 
+    mock! {
+        VerificationMailer {}
+
+        #[async_trait]
+        impl VerificationMailer for VerificationMailer {
+            async fn send_verification_code(&self, email: &String, code: &String) -> Result<(), Failure>;
+        }
+    }
+
+    #[actix_rt::test]
+    async fn should_return_ok() {
+        let mut repo = MockProfileRespository::new();
+        let mut storage = MockVerificationKeysStorage::new();
+        let mut code_generator = MockCodeGenerator::new();
+        let mut mailer = MockVerificationMailer::new();
+        let test_code = "test_code".to_string();
+        let test_code_clone = test_code.clone();
+        let user = CreateUserModel {
+            email: "test@test.com".to_string(),
+            password: "testPassword".to_string(),
+            username: "testName".to_string(),
+        };
+        repo.expect_save_user()
+            .with(predicate::eq(user.clone()))
+            .return_once(|_| Ok(()));
+        code_generator
+            .expect_generate()
+            .return_once(move || test_code_clone);
+        storage
+            .expect_save_verification_code()
+            .with(
+                predicate::eq((&user).email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Ok(()));
+        mailer
+            .expect_send_verification_code()
+            .with(
+                predicate::eq((&user).email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Ok(()));
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+
+        let result = interactor.create_user(&user).await;
+
+        assert_eq!(result, Ok(()));
+    }
+
     #[actix_rt::test]
     async fn should_return_error_if_cannot_save_user() {
         let mut repo = MockProfileRespository::new();
         let storage = MockVerificationKeysStorage::new();
         let code_generator = MockCodeGenerator::new();
+        let mailer = MockVerificationMailer::new();
         let user = CreateUserModel {
             email: "test@test.com".to_string(),
             password: "testPassword".to_string(),
@@ -120,7 +186,7 @@ mod test {
         repo.expect_save_user()
             .with(predicate::eq(user.clone()))
             .return_once(move |_| Err(clone));
-        let interactor = ProfileInteractor::new(repo, code_generator, storage);
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
 
         let result = interactor.create_user(&user).await;
 
@@ -129,16 +195,13 @@ mod test {
 
     #[actix_rt::test]
     async fn should_return_error_if_cannot_save_code() {
-        let mut repo = MockProfileRespository::new();
+        let repo = MockProfileRespository::new();
         let mut storage = MockVerificationKeysStorage::new();
         let mut code_generator = MockCodeGenerator::new();
+        let mailer = MockVerificationMailer::new();
         let test_code = "test_code".to_string();
         let test_code_clone = test_code.clone();
-        let user = CreateUserModel {
-            email: "test@test.com".to_string(),
-            password: "testPassword".to_string(),
-            username: "testName".to_string(),
-        };
+        let email = "test@email.com".to_string();
         let failure = Failure {
             error_type: FailureType::Authentication,
             args: None,
@@ -146,20 +209,57 @@ mod test {
             message: "as".to_string(),
         };
         let copy = failure.clone();
-        repo.expect_save_user()
-            .with(predicate::eq(user.clone()))
-            .return_once(move |_| Ok(()));
         code_generator
             .expect_generate()
             .return_once(move || test_code_clone);
 
         storage
             .expect_save_verification_code()
-            .with(predicate::eq(user.clone().email), predicate::eq(test_code))
+            .with(predicate::eq(email.clone()), predicate::eq(test_code))
             .return_once(move |_, __| Err(copy));
-        let interactor = ProfileInteractor::new(repo, code_generator, storage);
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
 
-        let result = interactor.create_user(&user).await;
+        let result = interactor.verify_email(&email).await;
+
+        assert_eq!(result, Err(failure.clone()))
+    }
+
+    #[actix_rt::test]
+    async fn should_return_error_if_cannot_send_email() {
+        let repo = MockProfileRespository::new();
+        let mut storage = MockVerificationKeysStorage::new();
+        let mut code_generator = MockCodeGenerator::new();
+        let mut mailer = MockVerificationMailer::new();
+        let test_code = "test_code".to_string();
+        let test_code_clone = test_code.clone();
+        let email = "test@email.com".to_string();
+        let failure = Failure {
+            error_type: FailureType::Authentication,
+            args: None,
+            code: "cdsaf".to_string(),
+            message: "as".to_string(),
+        };
+        let copy = failure.clone();
+        code_generator
+            .expect_generate()
+            .return_once(move || test_code_clone);
+        storage
+            .expect_save_verification_code()
+            .with(
+                predicate::eq(email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Ok(()));
+        mailer
+            .expect_send_verification_code()
+            .with(
+                predicate::eq(email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Err(copy));
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+
+        let result = interactor.verify_email(&email).await;
 
         assert_eq!(result, Err(failure.clone()))
     }

@@ -10,13 +10,16 @@ use actix_web::{
 
 use crate::{
     common::failure::failure_handler::handle_failure,
-    features::profile::{
-        infrastructure::{
-            profile_repository_impl::ProfileRepositoryImpl,
-            verification_keys_storage_impl::VerificationKeysStorageImpl,
+    features::{
+        mailer::mailer::Mailer,
+        profile::{
+            infrastructure::{
+                profile_repository_impl::ProfileRepositoryImpl,
+                verification_keys_storage_impl::VerificationKeysStorageImpl,
+            },
+            interactors::profile_interactor::ProfileInteractor,
+            utils::code_generator::VerificationCodeGenerator,
         },
-        interactors::profile_interactor::ProfileInteractor,
-        utils::code_generator::VerificationCodeGenerator,
     },
 };
 
@@ -26,6 +29,7 @@ type Interceptor = ProfileInteractor<
     ProfileRepositoryImpl,
     VerificationCodeGenerator,
     VerificationKeysStorageImpl,
+    Mailer,
 >;
 
 pub fn configure_profile_controller(interactor: Arc<Interceptor>, config: &mut ServiceConfig) {
