@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::dtos::create_user_dto::CreateUserDto;
+use super::dtos::{create_user_dto::CreateUserDto, resend_email_dto::ResendEmailDto};
 
 type Interceptor = ProfileInteractor<
     ProfileRepositoryImpl,
@@ -37,8 +37,21 @@ pub fn configure_profile_controller(interactor: Arc<Interceptor>, config: &mut S
         web::scope("/profile")
             .app_data(Data::from(interactor))
             .service(get_current_user)
+            .service(resend_email)
             .service(create_user),
     );
+}
+
+#[post("/email/resend")]
+async fn resend_email(
+    interactor: web::Data<Interceptor>,
+    dto: web::Json<ResendEmailDto>,
+) -> impl Responder {
+    let result = interactor.resend_email(&dto.email).await;
+    match result {
+        Ok(_) => HttpResponse::new(StatusCode::OK),
+        Err(err) => handle_failure(err),
+    }
 }
 
 #[get("/current")]

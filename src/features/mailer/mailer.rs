@@ -15,6 +15,8 @@ impl Mailer {
 #[async_trait]
 impl VerificationMailer for Mailer {
     async fn send_verification_code(&self, email: &String, code: &String) -> Result<(), Failure> {
+        let _ = email;
+        let _ = code;
         return Ok(());
     }
 }

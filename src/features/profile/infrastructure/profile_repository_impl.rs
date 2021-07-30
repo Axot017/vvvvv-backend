@@ -26,4 +26,9 @@ impl ProfileRepository for ProfileRepositoryImpl {
         let _ = uuid;
         todo!()
     }
+
+    async fn get_user_by_email(&self, email: &String) -> Result<User, Failure> {
+        let _ = email;
+        todo!()
+    }
 }

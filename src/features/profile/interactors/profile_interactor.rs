@@ -8,6 +8,8 @@ use async_trait::async_trait;
 pub trait ProfileRepository {
     async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
 
+    async fn get_user_by_email(&self, email: &String) -> Result<User, Failure>;
+
     async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure>;
 }
 
@@ -69,6 +71,11 @@ where
         self.profile_repository.get_user_by_uuid(uuid).await
     }
 
+    pub async fn resend_email(&self, email: &String) -> Result<(), Failure> {
+        let user = self.profile_repository.get_user_by_email(email).await?;
+        self.verify_email(&user.email).await
+    }
+
     async fn verify_email(&self, email: &String) -> Result<(), Failure> {
         let code = self.code_generator.generate().await;
         self.verification_keys_storage
@@ -120,6 +127,8 @@ mod test {
             async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure>;
 
             async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
+
+            async fn get_user_by_email(&self, email: &String) -> Result<User, Failure>;
         }
     }
 
@@ -155,6 +164,50 @@ mod test {
         let result = interactor.get_user(&user.uuid).await;
 
         assert_eq!(result, Ok(user));
+    }
+
+    #[actix_rt::test]
+    async fn should_return_resend_email() {
+        let mut repo = MockProfileRespository::new();
+        let mut storage = MockVerificationKeysStorage::new();
+        let mut code_generator = MockCodeGenerator::new();
+        let mut mailer = MockVerificationMailer::new();
+        let test_code = "test_code".to_string();
+        let test_code_clone = test_code.clone();
+        let user = User {
+            avatar_code: None,
+            uuid: "test_uuid".to_string(),
+            email: "test_email".to_string(),
+            username: "test_username".to_string(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let user_clone = user.clone();
+        repo.expect_get_user_by_email()
+            .with(predicate::eq(user.email.clone()))
+            .return_once(move |_| Ok(user_clone));
+        code_generator
+            .expect_generate()
+            .return_once(move || test_code_clone);
+        storage
+            .expect_save_verification_code()
+            .with(
+                predicate::eq((&user).email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Ok(()));
+        mailer
+            .expect_send_verification_code()
+            .with(
+                predicate::eq((&user).email.clone()),
+                predicate::eq(test_code.clone()),
+            )
+            .return_once(move |_, __| Ok(()));
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+
+        let result = interactor.resend_email(&user.email).await;
+
+        assert_eq!(result, Ok(()));
     }
 
     #[actix_rt::test]
