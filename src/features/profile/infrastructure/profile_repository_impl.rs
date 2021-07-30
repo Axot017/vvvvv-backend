@@ -31,4 +31,9 @@ impl ProfileRepository for ProfileRepositoryImpl {
         let _ = email;
         todo!()
     }
+
+    async fn update_user(&self, user: &User) -> Result<(), Failure> {
+        let _ = user;
+        todo!()
+    }
 }

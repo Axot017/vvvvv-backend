@@ -23,7 +23,10 @@ use crate::{
     },
 };
 
-use super::dtos::{create_user_dto::CreateUserDto, resend_email_dto::ResendEmailDto};
+use super::dtos::{
+    create_user_dto::CreateUserDto, resend_email_dto::ResendEmailDto,
+    verify_email_dto::VerifyEmailDto,
+};
 
 type Interceptor = ProfileInteractor<
     ProfileRepositoryImpl,
@@ -48,6 +51,18 @@ async fn resend_email(
     dto: web::Json<ResendEmailDto>,
 ) -> impl Responder {
     let result = interactor.resend_email(&dto.email).await;
+    match result {
+        Ok(_) => HttpResponse::new(StatusCode::OK),
+        Err(err) => handle_failure(err),
+    }
+}
+
+#[post("/email/verify")]
+async fn verify_user(
+    interactor: web::Data<Interceptor>,
+    dto: web::Json<VerifyEmailDto>,
+) -> impl Responder {
+    let result = interactor.verify_email(&dto.code).await;
     match result {
         Ok(_) => HttpResponse::new(StatusCode::OK),
         Err(err) => handle_failure(err),

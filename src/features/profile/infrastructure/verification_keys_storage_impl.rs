@@ -24,8 +24,8 @@ impl VerificationKeysStorage for VerificationKeysStorageImpl {
         Ok(())
     }
 
-    async fn get_verification_code(&self, email: &String) -> Result<String, Failure> {
-        let _ = email;
+    async fn get_email_by_code(&self, verification_code: &String) -> Result<String, Failure> {
+        let _ = verification_code;
         Ok("test".to_string())
     }
 }
