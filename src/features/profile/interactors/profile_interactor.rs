@@ -1,9 +1,12 @@
 use crate::{
     common::failure::domain::failure::Failure,
-    features::profile::domain::{create_user_model::CreateUserModel, user::User},
+    features::profile::{
+        domain::{create_user_model::CreateUserModel, user::User},
+        errors::profile_errors::get_user_already_verified_error,
+    },
 };
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 
 #[async_trait]
 pub trait ProfileRepository {
@@ -86,6 +89,9 @@ where
 
     pub async fn resend_email(&self, email: &String) -> Result<(), Failure> {
         let user = self.profile_repository.get_user_by_email(email).await?;
+        if user.verified_at.is_some() {
+            return Err(get_user_already_verified_error());
+        }
         self.send_verification_email(&user.email).await
     }
 
@@ -226,7 +232,7 @@ mod test {
     }
 
     #[actix_rt::test]
-    async fn should_return_resend_email() {
+    async fn should_resend_email() {
         let test_code = "test_code".to_string();
         let test_code_clone = test_code.clone();
         let user = User {
@@ -271,6 +277,35 @@ mod test {
         let result = interactor.resend_email(&user.email).await;
 
         assert_eq!(result, Ok(()));
+    }
+
+    #[actix_rt::test]
+    async fn should_return_error_if_email_is_alredy_verified() {
+        let user = User {
+            verified_at: Some(Utc::now()),
+            avatar_code: None,
+            uuid: "test_uuid".to_string(),
+            email: "test_email".to_string(),
+            username: "test_username".to_string(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let user_clone = user.clone();
+
+        let mut repo = MockProfileRespository::new();
+        let storage = MockVerificationKeysStorage::new();
+        let code_generator = MockCodeGenerator::new();
+        let mailer = MockVerificationMailer::new();
+
+        repo.expect_get_user_by_email()
+            .with(predicate::eq(user.email.clone()))
+            .return_once(move |_| Ok(user_clone));
+
+        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+
+        let result = interactor.resend_email(&user.email).await;
+
+        assert_eq!(result, Err(get_user_already_verified_error()));
     }
 
     #[actix_rt::test]
