@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VerifyEmailDto {
-    pub code: String,
+pub struct RefreshTokenDto {
+    pub token: String,
+    pub client_secret: String,
 }

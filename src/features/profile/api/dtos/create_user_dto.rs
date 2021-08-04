@@ -3,6 +3,7 @@ use serde::Deserialize;
 use crate::features::profile::domain::create_user_model::CreateUserModel;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateUserDto {
     username: String,
     email: String,

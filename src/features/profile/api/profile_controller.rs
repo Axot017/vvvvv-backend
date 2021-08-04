@@ -28,14 +28,14 @@ use super::dtos::{
     verify_email_dto::VerifyEmailDto,
 };
 
-type Interceptor = ProfileInteractor<
+type Interactor = ProfileInteractor<
     ProfileRepositoryImpl,
     VerificationCodeGenerator,
     VerificationKeysStorageImpl,
     Mailer,
 >;
 
-pub fn configure_profile_controller(interactor: Arc<Interceptor>, config: &mut ServiceConfig) {
+pub fn configure_profile_controller(interactor: Arc<Interactor>, config: &mut ServiceConfig) {
     config.service(
         web::scope("/profile")
             .app_data(Data::from(interactor))
@@ -47,7 +47,7 @@ pub fn configure_profile_controller(interactor: Arc<Interceptor>, config: &mut S
 
 #[post("/email/resend")]
 async fn resend_email(
-    interactor: web::Data<Interceptor>,
+    interactor: web::Data<Interactor>,
     dto: web::Json<ResendEmailDto>,
 ) -> impl Responder {
     let result = interactor.resend_email(&dto.email).await;
@@ -59,7 +59,7 @@ async fn resend_email(
 
 #[post("/email/verify")]
 async fn verify_user(
-    interactor: web::Data<Interceptor>,
+    interactor: web::Data<Interactor>,
     dto: web::Json<VerifyEmailDto>,
 ) -> impl Responder {
     let result = interactor.verify_email(&dto.code).await;
@@ -70,13 +70,14 @@ async fn verify_user(
 }
 
 #[get("/current")]
-async fn get_current_user() -> impl Responder {
+async fn get_current_user(interactor: web::Data<Interactor>) -> impl Responder {
+    let _ = interactor.get_user(&"uuid".to_string()).await;
     HttpResponse::Ok()
 }
 
 #[post("")]
 async fn create_user(
-    interactor: web::Data<Interceptor>,
+    interactor: web::Data<Interactor>,
     dto: web::Json<CreateUserDto>,
 ) -> impl Responder {
     let user = dto.to_model();

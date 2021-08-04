@@ -6,6 +6,10 @@ use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
 use features::{
+    auth::{
+        api::auth_controller::configure_auth_controller,
+        interactors::auth_interactor::AuthInteractor,
+    },
     mailer::mailer::Mailer,
     profile::{
         api::profile_controller::configure_profile_controller,
@@ -18,24 +22,50 @@ use features::{
     },
 };
 
+type Profile = ProfileInteractor<
+    ProfileRepositoryImpl,
+    VerificationCodeGenerator,
+    VerificationKeysStorageImpl,
+    Mailer,
+>;
+
+type Auth = AuthInteractor;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let code_generator = VerificationCodeGenerator::new();
-    let verification_keys_storage = VerificationKeysStorageImpl::new();
-    let profile_repository = ProfileRepositoryImpl::new();
-    let mailer = Mailer::new();
-    let profile_interactor = Arc::new(ProfileInteractor::new(
-        profile_repository,
-        code_generator,
-        verification_keys_storage,
-        mailer,
-    ));
+    let profile_interactor = get_profile_interactor();
+    let auth_interactor = get_auth_interactor();
     HttpServer::new(move || {
-        App::new().service(web::scope("/api").configure(|cfg| {
-            configure_profile_controller(profile_interactor.clone(), cfg);
-        }))
+        App::new().service(
+            web::scope("/api")
+                .configure(|cfg| {
+                    configure_profile_controller(profile_interactor.clone(), cfg);
+                })
+                .configure(|cfg| configure_auth_controller(auth_interactor.clone(), cfg)),
+        )
     })
     .bind("127.0.0.1:8080")?
     .run()
     .await
+}
+
+fn get_auth_interactor() -> Arc<Auth> {
+    let interactor = AuthInteractor::new();
+
+    Arc::new(interactor)
+}
+
+fn get_profile_interactor() -> Arc<Profile> {
+    let code_generator = VerificationCodeGenerator::new();
+    let verification_keys_storage = VerificationKeysStorageImpl::new();
+    let profile_repository = ProfileRepositoryImpl::new();
+    let mailer = Mailer::new();
+    let interactor = ProfileInteractor::new(
+        profile_repository,
+        code_generator,
+        verification_keys_storage,
+        mailer,
+    );
+
+    Arc::new(interactor)
 }
