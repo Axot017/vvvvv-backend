@@ -5,9 +5,14 @@ mod features;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
+use config::auth_config::AuthConfig;
 use features::{
     auth::{
         api::auth_controller::configure_auth_controller,
+        infrastructure::{
+            auth_data_repository_impl::AuthDataRepositoryImpl,
+            jwt_token_provider::JwtTokenProvider, password_manager_impl::PasswordManagerImpl,
+        },
         interactors::auth_interactor::AuthInteractor,
     },
     mailer::mailer::Mailer,
@@ -29,7 +34,7 @@ type Profile = ProfileInteractor<
     Mailer,
 >;
 
-type Auth = AuthInteractor;
+type Auth = AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataRepositoryImpl>;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -50,7 +55,12 @@ async fn main() -> std::io::Result<()> {
 }
 
 fn get_auth_interactor() -> Arc<Auth> {
-    let interactor = AuthInteractor::new();
+    let interactor = AuthInteractor::new(
+        PasswordManagerImpl::new(),
+        JwtTokenProvider::new(),
+        AuthDataRepositoryImpl::new(),
+        AuthConfig::new(),
+    );
 
     Arc::new(interactor)
 }
