@@ -16,9 +16,9 @@ impl From<&str> for UserRole {
     }
 }
 
-impl Into<String> for UserRole {
-    fn into(self) -> String {
-        return match self {
+impl From<&UserRole> for String {
+    fn from(role: &UserRole) -> Self {
+        return match role {
             UserRole::USER => "USER".to_string(),
             UserRole::MODERATOR => "MODERATOR".to_string(),
             UserRole::ADMIN => "ADMIN".to_string(),
@@ -42,10 +42,10 @@ mod test {
     }
 
     #[test]
-    fn should_turn_into_string() {
-        let user: String = UserRole::USER.into();
-        let moderator: String = UserRole::MODERATOR.into();
-        let admin: String = UserRole::ADMIN.into();
+    fn should_get_string_from_role() {
+        let user: String = String::from(&UserRole::USER);
+        let moderator: String = String::from(&UserRole::MODERATOR);
+        let admin: String = String::from(&UserRole::ADMIN);
 
         assert_eq!(user, "USER");
         assert_eq!(moderator, "MODERATOR");

@@ -10,29 +10,28 @@ use crate::{
 use async_trait::async_trait;
 
 pub trait TokenProvider {
-    fn generate_token(uuid: &String, role: &UserRole) -> Result<TokensPair, Failure>;
+    fn generate_token(&self, uuid: &String, role: &UserRole) -> Result<TokensPair, Failure>;
 
-    fn validate_access_token(access_token: &String) -> Result<(String, UserRole), Failure>;
+    fn validate_access_token(&self, access_token: &String) -> Result<(String, UserRole), Failure>;
 
-    fn validate_refresh_token(refresh_token: &String) -> Result<(), Failure>;
+    fn validate_refresh_token(&self, refresh_token: &String) -> Result<(), Failure>;
 }
 
 #[async_trait]
 pub trait AuthDataRepository {
-    async fn get_auth_data(email: &String, username: &String) -> Result<AuthData, Failure>;
+    async fn get_auth_data(&self, email: &String, username: &String) -> Result<AuthData, Failure>;
 }
 
 pub trait PasswordManager {
-    fn hash_password(password: &String) -> Result<String, Failure>;
+    fn hash_password(&self, password: &String) -> Result<String, Failure>;
 
-    fn verify_password(password: &String, hash: &String) -> Result<bool, Failure>;
+    fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure>;
 }
 
 pub struct AuthInteractor<T, Y, U> {
     password_manager: T,
     token_provider: Y,
     auth_data_respository: U,
-    auth_config: AuthConfig,
 }
 
 impl<T, Y, U> AuthInteractor<T, Y, U>
@@ -45,13 +44,11 @@ where
         password_manager: T,
         token_provider: Y,
         auth_data_respository: U,
-        auth_config: AuthConfig,
     ) -> AuthInteractor<T, Y, U> {
         return AuthInteractor {
             password_manager,
             token_provider,
             auth_data_respository,
-            auth_config,
         };
     }
 }

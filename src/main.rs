@@ -5,7 +5,7 @@ mod features;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
-use config::auth_config::AuthConfig;
+use config::{auth_config::AuthConfig, common_config::CommonConfig};
 use features::{
     auth::{
         api::auth_controller::configure_auth_controller,
@@ -38,6 +38,7 @@ type Auth = AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataReposi
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let common_config = CommonConfig::new();
     let profile_interactor = get_profile_interactor();
     let auth_interactor = get_auth_interactor();
     HttpServer::new(move || {
@@ -49,7 +50,7 @@ async fn main() -> std::io::Result<()> {
                 .configure(|cfg| configure_auth_controller(auth_interactor.clone(), cfg)),
         )
     })
-    .bind("127.0.0.1:8080")?
+    .bind(format!("127.0.0.1:{}", common_config.port))?
     .run()
     .await
 }
@@ -57,9 +58,8 @@ async fn main() -> std::io::Result<()> {
 fn get_auth_interactor() -> Arc<Auth> {
     let interactor = AuthInteractor::new(
         PasswordManagerImpl::new(),
-        JwtTokenProvider::new(),
+        JwtTokenProvider::new(AuthConfig::new()),
         AuthDataRepositoryImpl::new(),
-        AuthConfig::new(),
     );
 
     Arc::new(interactor)

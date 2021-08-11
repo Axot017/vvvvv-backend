@@ -17,7 +17,7 @@ impl PasswordManagerImpl {
 }
 
 impl PasswordManager for PasswordManagerImpl {
-    fn hash_password(password: &String) -> Result<String, Failure> {
+    fn hash_password(&self, password: &String) -> Result<String, Failure> {
         let hashed = hash(password, DEFAULT_COST);
 
         return match hashed {
@@ -26,7 +26,7 @@ impl PasswordManager for PasswordManagerImpl {
         };
     }
 
-    fn verify_password(password: &String, hash: &String) -> Result<bool, Failure> {
+    fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure> {
         let result = verify(password, hash);
 
         return match result {
