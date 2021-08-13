@@ -34,7 +34,8 @@ type Profile = ProfileInteractor<
     Mailer,
 >;
 
-type Auth = AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataRepositoryImpl>;
+type Auth =
+    AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataRepositoryImpl, AuthConfig>;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -60,6 +61,7 @@ fn get_auth_interactor() -> Arc<Auth> {
         PasswordManagerImpl::new(),
         JwtTokenProvider::new(AuthConfig::new()),
         AuthDataRepositoryImpl::new(),
+        AuthConfig::new(),
     );
 
     Arc::new(interactor)

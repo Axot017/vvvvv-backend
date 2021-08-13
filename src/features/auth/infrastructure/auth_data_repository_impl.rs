@@ -17,7 +17,8 @@ impl AuthDataRepositoryImpl {
 
 #[async_trait]
 impl AuthDataRepository for AuthDataRepositoryImpl {
-    async fn get_auth_data(&self, email: &String, username: &String) -> Result<AuthData, Failure> {
+    async fn get_auth_data(&self, login: &String) -> Result<AuthData, Failure> {
+        let _ = login;
         todo!()
     }
 }

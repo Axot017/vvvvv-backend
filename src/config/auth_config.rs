@@ -1,5 +1,7 @@
 use std::env;
 
+use crate::features::auth::interactors::auth_interactor::AuthConfigProvider;
+
 pub struct AuthConfig {
     pub client_secret: String,
     pub private_key: String,
@@ -25,5 +27,11 @@ impl AuthConfig {
             access_token_exp,
             refresh_token_exp,
         };
+    }
+}
+
+impl AuthConfigProvider for AuthConfig {
+    fn get_client_secret(&self) -> String {
+        return self.client_secret.clone();
     }
 }

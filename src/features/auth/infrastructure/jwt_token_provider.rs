@@ -5,7 +5,7 @@ use crate::{
     common::failure::domain::failure::Failure,
     config::auth_config::AuthConfig,
     features::auth::{
-        domain::user_role::UserRole,
+        domain::{tokens_pair::TokensPair, user_role::UserRole},
         errors::token_errors::{
             get_invalid_access_token_error, get_invalid_refresh_token_error,
             get_token_generating_error,
@@ -14,8 +14,6 @@ use crate::{
         interactors::auth_interactor::TokenProvider,
     },
 };
-
-use super::entities::tokens_pair::TokensPair;
 
 pub struct JwtTokenProvider {
     auth_config: AuthConfig,
@@ -88,7 +86,10 @@ impl TokenProvider for JwtTokenProvider {
         };
     }
 
-    fn validate_refresh_token(&self, refresh_token: &String) -> Result<(), Failure> {
+    fn validate_refresh_token(
+        &self,
+        refresh_token: &String,
+    ) -> Result<(String, UserRole), Failure> {
         let token = decode::<TokenClaims>(
             refresh_token,
             &DecodingKey::from_secret(self.auth_config.private_key.as_ref()),
@@ -98,7 +99,10 @@ impl TokenProvider for JwtTokenProvider {
         return match token {
             Ok(token) => {
                 return if !token.claims.authorized {
-                    Ok(())
+                    Ok((
+                        token.claims.user_uuid,
+                        UserRole::from(token.claims.user_role.as_str()),
+                    ))
                 } else {
                     Err(get_invalid_refresh_token_error())
                 }

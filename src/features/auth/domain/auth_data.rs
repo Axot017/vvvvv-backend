@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 
 use super::user_role::UserRole;
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct AuthData {
     pub uuid: String,
     pub username: String,
