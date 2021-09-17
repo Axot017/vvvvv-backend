@@ -13,6 +13,7 @@ use crate::{
     features::{
         mailer::mailer::Mailer,
         profile::{
+            domain::create_user_model::CreateUserModel,
             infrastructure::{
                 profile_repository_impl::ProfileRepositoryImpl,
                 verification_keys_storage_impl::VerificationKeysStorageImpl,
@@ -24,7 +25,7 @@ use crate::{
 };
 
 use super::dtos::{
-    create_user_dto::CreateUserDto, resend_email_dto::ResendEmailDto,
+    create_user_dto::CreateUserDto, resend_email_dto::ResendEmailDto, user_dto::UserDto,
     verify_email_dto::VerifyEmailDto,
 };
 
@@ -71,8 +72,11 @@ async fn verify_user(
 
 #[get("/current")]
 async fn get_current_user(interactor: web::Data<Interactor>) -> impl Responder {
-    let _ = interactor.get_user(&"uuid".to_string()).await;
-    HttpResponse::Ok()
+    let result = interactor.get_user(&1).await;
+    match result {
+        Ok(user) => HttpResponse::Ok().json(UserDto::from(user)),
+        Err(err) => handle_failure(err),
+    }
 }
 
 #[post("")]
@@ -80,7 +84,7 @@ async fn create_user(
     interactor: web::Data<Interactor>,
     dto: web::Json<CreateUserDto>,
 ) -> impl Responder {
-    let user = dto.to_model();
+    let user: CreateUserModel = dto.into_inner().into();
     let result = interactor.create_user(&user).await;
     match result {
         Ok(_) => HttpResponse::new(StatusCode::OK),

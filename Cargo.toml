@@ -3,19 +3,22 @@ name = "vvvvv-backend"
 version = "0.1.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 actix-web = "3"
 actix-rt = "2.2"
 actix-service = "1"
+async-trait = "0.1.50"
+bcrypt = "0.10.1"
+chrono = { version = "0.4", features = ["serde"] }
+diesel = { version = "1.4.4", features = ["postgres", "r2d2", "chrono"] }
+fern = "0.6"
 futures = "0.3"
 jsonwebtoken = "7"
-chrono = { version = "0.4", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-async-trait = "0.1.50"
+log = "0.4"
 mockall = "0.10.2"
 nanoid = "0.4.0"
-bcrypt = "0.10.1"
+r2d2 = "0.8.9"
+serde = { version = "1.0", features = ["derive"] }
+
 
 [dev-dependencies]

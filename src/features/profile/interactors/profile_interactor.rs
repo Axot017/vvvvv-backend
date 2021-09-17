@@ -10,7 +10,7 @@ use chrono::Utc;
 
 #[async_trait]
 pub trait ProfileRepository {
-    async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
+    async fn get_user_by_id(&self, uuid: &i64) -> Result<User, Failure>;
 
     async fn get_user_by_email(&self, email: &String) -> Result<User, Failure>;
 
@@ -83,8 +83,8 @@ where
         self.profile_repository.update_user(&user).await
     }
 
-    pub async fn get_user(&self, uuid: &String) -> Result<User, Failure> {
-        self.profile_repository.get_user_by_uuid(uuid).await
+    pub async fn get_user(&self, id: &i64) -> Result<User, Failure> {
+        self.profile_repository.get_user_by_id(id).await
     }
 
     pub async fn resend_email(&self, email: &String) -> Result<(), Failure> {
@@ -145,7 +145,7 @@ mod test {
         impl ProfileRepository for ProfileRespository {
             async fn save_user(&self, user: &CreateUserModel) -> Result<(), Failure>;
 
-            async fn get_user_by_uuid(&self, uuid: &String) -> Result<User, Failure>;
+            async fn get_user_by_id(&self, uuid: &i64) -> Result<User, Failure>;
 
             async fn get_user_by_email(&self, email: &String) -> Result<User, Failure>;
 
@@ -167,8 +167,8 @@ mod test {
         let test_code = "test_code".to_string();
         let user = User {
             verified_at: None,
-            avatar_code: None,
-            uuid: "test_uuid".to_string(),
+            avatar_id: None,
+            id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
             created_at: Utc::now(),
@@ -206,8 +206,8 @@ mod test {
     async fn should_return_user() {
         let user = User {
             verified_at: None,
-            avatar_code: None,
-            uuid: "test_uuid".to_string(),
+            avatar_id: None,
+            id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
             created_at: Utc::now(),
@@ -220,13 +220,13 @@ mod test {
         let code_generator = MockCodeGenerator::new();
         let mailer = MockVerificationMailer::new();
 
-        repo.expect_get_user_by_uuid()
-            .with(predicate::eq((&user).uuid.clone()))
+        repo.expect_get_user_by_id()
+            .with(predicate::eq((&user).id.clone()))
             .return_once(|_| Ok(user_clone));
 
         let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
 
-        let result = interactor.get_user(&user.uuid).await;
+        let result = interactor.get_user(&user.id).await;
 
         assert_eq!(result, Ok(user));
     }
@@ -237,8 +237,8 @@ mod test {
         let test_code_clone = test_code.clone();
         let user = User {
             verified_at: None,
-            avatar_code: None,
-            uuid: "test_uuid".to_string(),
+            avatar_id: None,
+            id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
             created_at: Utc::now(),
@@ -283,8 +283,8 @@ mod test {
     async fn should_return_error_if_email_is_alredy_verified() {
         let user = User {
             verified_at: Some(Utc::now()),
-            avatar_code: None,
-            uuid: "test_uuid".to_string(),
+            avatar_id: None,
+            id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
             created_at: Utc::now(),

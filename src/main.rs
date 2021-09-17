@@ -1,11 +1,18 @@
 mod common;
 mod config;
 mod features;
+mod schema;
+
+#[macro_use]
+extern crate diesel;
+extern crate r2d2;
+extern crate chrono;
 
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
 use config::{auth_config::AuthConfig, common_config::CommonConfig};
+use diesel::{PgConnection, r2d2::ConnectionManager};
 use features::{
     auth::{
         api::auth_controller::configure_auth_controller,
@@ -26,6 +33,7 @@ use features::{
         utils::code_generator::VerificationCodeGenerator,
     },
 };
+use r2d2::Pool;
 
 type Profile = ProfileInteractor<
     ProfileRepositoryImpl,
@@ -40,8 +48,13 @@ type Auth =
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let common_config = CommonConfig::new();
-    let profile_interactor = get_profile_interactor();
+
+    let manager = ConnectionManager::<PgConnection>::new(common_config.db_url);
+    let pool = r2d2::Pool::new(manager).unwrap();
+    
+    let profile_interactor = get_profile_interactor(pool.clone());
     let auth_interactor = get_auth_interactor();
+    
     HttpServer::new(move || {
         App::new().service(
             web::scope("/api")
@@ -67,10 +80,10 @@ fn get_auth_interactor() -> Arc<Auth> {
     Arc::new(interactor)
 }
 
-fn get_profile_interactor() -> Arc<Profile> {
+fn get_profile_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Arc<Profile> {
     let code_generator = VerificationCodeGenerator::new();
     let verification_keys_storage = VerificationKeysStorageImpl::new();
-    let profile_repository = ProfileRepositoryImpl::new();
+    let profile_repository = ProfileRepositoryImpl::new(pool);
     let mailer = Mailer::new();
     let interactor = ProfileInteractor::new(
         profile_repository,

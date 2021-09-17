@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::features::profile::domain::create_user_model::CreateUserModel;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUserDto {
     username: String,
@@ -10,12 +10,12 @@ pub struct CreateUserDto {
     password: String,
 }
 
-impl CreateUserDto {
-    pub fn to_model(&self) -> CreateUserModel {
+impl Into<CreateUserModel> for CreateUserDto {
+    fn into(self) -> CreateUserModel {
         return CreateUserModel {
-            username: self.username.clone(),
-            email: self.email.clone(),
-            password: self.password.clone(),
+            username: self.username,
+            email: self.email,
+            password: self.password,
         };
     }
 }
@@ -34,11 +34,12 @@ mod tests {
             email,
             password,
         };
+        let dto_clone = dto.clone();
 
-        let result = dto.to_model();
+        let result: CreateUserModel = dto.into();
 
-        assert_eq!(dto.username, result.username);
-        assert_eq!(dto.email, result.email);
-        assert_eq!(dto.password, result.password);
+        assert_eq!(dto_clone.password, result.password);
+        assert_eq!(dto_clone.username, result.username);
+        assert_eq!(dto_clone.email, result.email);
     }
 }
