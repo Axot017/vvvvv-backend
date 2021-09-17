@@ -1,8 +1,10 @@
+use crate::schema::profile;
 use chrono::{DateTime, Utc};
 
 use crate::features::profile::domain::user::User;
 
-#[derive(Queryable, Debug, PartialEq, Clone)]
+#[derive(Queryable, Identifiable, Debug, PartialEq, Clone)]
+#[table_name = "profile"]
 pub struct ProfileEntity {
     pub id: i64,
     pub name: String,

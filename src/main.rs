@@ -5,14 +5,14 @@ mod schema;
 
 #[macro_use]
 extern crate diesel;
-extern crate r2d2;
 extern crate chrono;
+extern crate r2d2;
 
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
-use config::{auth_config::AuthConfig, common_config::CommonConfig};
-use diesel::{PgConnection, r2d2::ConnectionManager};
+use config::{auth_config::AuthConfig, common_config::CommonConfig, profile_config::ProfileConfig};
+use diesel::{r2d2::ConnectionManager, PgConnection};
 use features::{
     auth::{
         api::auth_controller::configure_auth_controller,
@@ -34,6 +34,7 @@ use features::{
     },
 };
 use r2d2::Pool;
+use redis::aio::MultiplexedConnection;
 
 type Profile = ProfileInteractor<
     ProfileRepositoryImpl,
@@ -51,10 +52,15 @@ async fn main() -> std::io::Result<()> {
 
     let manager = ConnectionManager::<PgConnection>::new(common_config.db_url);
     let pool = r2d2::Pool::new(manager).unwrap();
-    
-    let profile_interactor = get_profile_interactor(pool.clone());
+    let redis_client = redis::Client::open(common_config.redis_url).unwrap();
+    let redis_connection = redis_client
+        .get_multiplexed_async_std_connection()
+        .await
+        .unwrap();
+
+    let profile_interactor = get_profile_interactor(pool.clone(), redis_connection.clone());
     let auth_interactor = get_auth_interactor();
-    
+
     HttpServer::new(move || {
         App::new().service(
             web::scope("/api")
@@ -80,9 +86,13 @@ fn get_auth_interactor() -> Arc<Auth> {
     Arc::new(interactor)
 }
 
-fn get_profile_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Arc<Profile> {
+fn get_profile_interactor(
+    pool: Pool<ConnectionManager<PgConnection>>,
+    redis_connection: MultiplexedConnection,
+) -> Arc<Profile> {
+    let config = ProfileConfig::new();
     let code_generator = VerificationCodeGenerator::new();
-    let verification_keys_storage = VerificationKeysStorageImpl::new();
+    let verification_keys_storage = VerificationKeysStorageImpl::new(redis_connection, config);
     let profile_repository = ProfileRepositoryImpl::new(pool);
     let mailer = Mailer::new();
     let interactor = ProfileInteractor::new(

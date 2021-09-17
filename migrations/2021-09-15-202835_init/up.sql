@@ -2,8 +2,8 @@
 
 CREATE TABLE "profile" (
   "id" BIGSERIAL PRIMARY KEY NOT NULL,
-  "name" varchar(48) NOT NULL,
-  "email" varchar(128) NOT NULL,
+  "name" varchar(48) NOT NULL UNIQUE,
+  "email" varchar(128) NOT NULL UNIQUE,
   "password" varchar(128) NOT NULL,
   "role" varchar(48) NOT NULL DEFAULT 'USER',
   "avatar_id" varchar(48),
@@ -32,3 +32,11 @@ CREATE TABLE "post" (
   "updated_at" timestamp with TIME ZONE NOT NULL DEFAULT NOW(),
   "created_at" timestamp with TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+SELECT diesel_manage_updated_at('post');
+
+SELECT diesel_manage_updated_at('category');
+
+SELECT diesel_manage_updated_at('profile');
+
+CREATE UNIQUE INDEX idx_email on "profile"("email")
