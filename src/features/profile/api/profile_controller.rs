@@ -11,6 +11,7 @@ use actix_web::{
 use crate::{
     common::failure::failure_handler::handle_failure,
     features::{
+        auth::infrastructure::password_manager_impl::PasswordManagerImpl,
         mailer::mailer::Mailer,
         profile::{
             domain::create_user_model::CreateUserModel,
@@ -34,6 +35,7 @@ type Interactor = ProfileInteractor<
     VerificationCodeGenerator,
     VerificationKeysStorageImpl,
     Mailer,
+    PasswordManagerImpl,
 >;
 
 pub fn configure_profile_controller(interactor: Arc<Interactor>, config: &mut ServiceConfig) {
@@ -85,8 +87,8 @@ async fn create_user(
     interactor: web::Data<Interactor>,
     dto: web::Json<CreateUserDto>,
 ) -> impl Responder {
-    let user: CreateUserModel = dto.into_inner().into();
-    let result = interactor.create_user(&user).await;
+    let mut user: CreateUserModel = dto.into_inner().into();
+    let result = interactor.create_user(&mut user).await;
     match result {
         Ok(_) => HttpResponse::new(StatusCode::OK),
         Err(err) => handle_failure(err),

@@ -41,6 +41,7 @@ type Profile = ProfileInteractor<
     VerificationCodeGenerator,
     VerificationKeysStorageImpl,
     Mailer,
+    PasswordManagerImpl,
 >;
 
 type Auth =
@@ -90,6 +91,7 @@ fn get_profile_interactor(
     pool: Pool<ConnectionManager<PgConnection>>,
     redis_connection: MultiplexedConnection,
 ) -> Arc<Profile> {
+    let password_manager = PasswordManagerImpl::new();
     let config = ProfileConfig::new();
     let code_generator = VerificationCodeGenerator::new();
     let verification_keys_storage = VerificationKeysStorageImpl::new(redis_connection, config);
@@ -100,6 +102,7 @@ fn get_profile_interactor(
         code_generator,
         verification_keys_storage,
         mailer,
+        password_manager,
     );
 
     Arc::new(interactor)

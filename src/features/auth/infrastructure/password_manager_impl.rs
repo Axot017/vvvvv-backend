@@ -1,10 +1,17 @@
 use crate::{
     common::failure::domain::failure::Failure,
-    features::auth::{
-        errors::password_errors::{get_password_hashing_error, get_password_verification_error},
-        interactors::auth_interactor::PasswordManager,
+    features::{
+        auth::{
+            errors::password_errors::{
+                get_password_hashing_error, get_password_verification_error,
+            },
+            interactors::auth_interactor::PasswordVerifier,
+        },
+        profile::interactors::profile_interactor::PasswordHasher,
     },
 };
+
+use async_trait::async_trait;
 
 use bcrypt::{hash, verify, DEFAULT_COST};
 
@@ -16,8 +23,9 @@ impl PasswordManagerImpl {
     }
 }
 
-impl PasswordManager for PasswordManagerImpl {
-    fn hash_password(&self, password: &String) -> Result<String, Failure> {
+#[async_trait]
+impl PasswordHasher for PasswordManagerImpl {
+    async fn hash_password(&self, password: &String) -> Result<String, Failure> {
         let hashed = hash(password, DEFAULT_COST);
 
         return match hashed {
@@ -25,8 +33,11 @@ impl PasswordManager for PasswordManagerImpl {
             Err(_) => Err(get_password_hashing_error()),
         };
     }
+}
 
-    fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure> {
+#[async_trait]
+impl PasswordVerifier for PasswordManagerImpl {
+    async fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure> {
         let result = verify(password, hash);
 
         return match result {

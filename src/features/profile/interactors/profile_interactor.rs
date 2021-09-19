@@ -9,6 +9,11 @@ use async_trait::async_trait;
 use chrono::Utc;
 
 #[async_trait]
+pub trait PasswordHasher {
+    async fn hash_password(&self, password: &String) -> Result<String, Failure>;
+}
+
+#[async_trait]
 pub trait ProfileRepository {
     async fn get_user_by_id(&self, uuid: &i64) -> Result<User, Failure>;
 
@@ -40,35 +45,43 @@ pub trait CodeGenerator {
     async fn generate(&self) -> String;
 }
 
-pub struct ProfileInteractor<T, Y, U, I> {
+pub struct ProfileInteractor<T, Y, U, I, J> {
     profile_repository: T,
     code_generator: Y,
     verification_keys_storage: U,
     mailer: I,
+    password_hasher: J,
 }
 
-impl<T, Y, U, I> ProfileInteractor<T, Y, U, I>
+impl<T, Y, U, I, J> ProfileInteractor<T, Y, U, I, J>
 where
     T: ProfileRepository,
     Y: CodeGenerator,
     U: VerificationKeysStorage,
     I: VerificationMailer,
+    J: PasswordHasher,
 {
     pub fn new(
         profile_repository: T,
         code_generator: Y,
         verification_keys_storage: U,
         mailer: I,
-    ) -> ProfileInteractor<T, Y, U, I> {
+        password_hasher: J,
+    ) -> ProfileInteractor<T, Y, U, I, J> {
         ProfileInteractor {
             profile_repository,
             code_generator,
             verification_keys_storage,
             mailer,
+            password_hasher,
         }
     }
 
-    pub async fn create_user(&self, user: &CreateUserModel) -> Result<(), Failure> {
+    pub async fn create_user(&self, user: &mut CreateUserModel) -> Result<(), Failure> {
+        user.password = self
+            .password_hasher
+            .hash_password(&user.password.clone())
+            .await?;
         self.profile_repository.save_user(user).await?;
         self.send_verification_email(&user.email).await
     }
@@ -113,6 +126,15 @@ mod test {
     use crate::common::failure::domain::failure::FailureType;
 
     use super::*;
+
+    mock! {
+        PasswordHasher {}
+
+        #[async_trait]
+        impl PasswordHasher for PasswordHasher {
+            async fn hash_password(&self, password: &String) -> Result<String, Failure>;
+        }
+    }
 
     mock! {
         CodeGenerator {}
@@ -162,6 +184,22 @@ mod test {
         }
     }
 
+    fn get_dependencies() -> (
+        MockPasswordHasher,
+        MockCodeGenerator,
+        MockVerificationKeysStorage,
+        MockProfileRespository,
+        MockVerificationMailer,
+    ) {
+        let hasher = MockPasswordHasher::new();
+        let code_generator = MockCodeGenerator::new();
+        let keys_storage = MockVerificationKeysStorage::new();
+        let repo = MockProfileRespository::new();
+        let mailer = MockVerificationMailer::new();
+
+        return (hasher, code_generator, keys_storage, repo, mailer);
+    }
+
     #[actix_rt::test]
     async fn should_update_user_verification_date() {
         let test_code = "test_code".to_string();
@@ -178,10 +216,7 @@ mod test {
         let user_clone = user.clone();
         let email = (&user).email.clone();
 
-        let mut repo = MockProfileRespository::new();
-        let mut storage = MockVerificationKeysStorage::new();
-        let code_generator = MockCodeGenerator::new();
-        let mailer = MockVerificationMailer::new();
+        let (password_hasher, code_generator, mut storage, mut repo, mailer) = get_dependencies();
 
         repo.expect_get_user_by_email()
             .with(predicate::eq(email.clone()))
@@ -196,7 +231,8 @@ mod test {
             }))
             .return_once(|_| Ok(()));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.verify_email(&test_code).await;
 
@@ -217,16 +253,14 @@ mod test {
         };
         let user_clone = user.clone();
 
-        let mut repo = MockProfileRespository::new();
-        let storage = MockVerificationKeysStorage::new();
-        let code_generator = MockCodeGenerator::new();
-        let mailer = MockVerificationMailer::new();
+        let (password_hasher, code_generator, storage, mut repo, mailer) = get_dependencies();
 
         repo.expect_get_user_by_id()
             .with(predicate::eq((&user).id.clone()))
             .return_once(|_| Ok(user_clone));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.get_user(&user.id).await;
 
@@ -249,10 +283,8 @@ mod test {
         };
         let user_clone = user.clone();
 
-        let mut repo = MockProfileRespository::new();
-        let mut storage = MockVerificationKeysStorage::new();
-        let mut code_generator = MockCodeGenerator::new();
-        let mut mailer = MockVerificationMailer::new();
+        let (password_hasher, mut code_generator, mut storage, mut repo, mut mailer) =
+            get_dependencies();
 
         repo.expect_get_user_by_email()
             .with(predicate::eq(user.email.clone()))
@@ -275,7 +307,8 @@ mod test {
             )
             .return_once(move |_, __| Ok(()));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.resend_email(&user.email).await;
 
@@ -296,16 +329,14 @@ mod test {
         };
         let user_clone = user.clone();
 
-        let mut repo = MockProfileRespository::new();
-        let storage = MockVerificationKeysStorage::new();
-        let code_generator = MockCodeGenerator::new();
-        let mailer = MockVerificationMailer::new();
+        let (password_hasher, code_generator, storage, mut repo, mailer) = get_dependencies();
 
         repo.expect_get_user_by_email()
             .with(predicate::eq(user.email.clone()))
             .return_once(move |_| Ok(user_clone));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.resend_email(&user.email).await;
 
@@ -316,19 +347,20 @@ mod test {
     async fn should_return_ok() {
         let test_code = "test_code".to_string();
         let test_code_clone = test_code.clone();
-        let user = CreateUserModel {
+        let mut user = CreateUserModel {
             email: "test@test.com".to_string(),
             password: "testPassword".to_string(),
             username: "testName".to_string(),
         };
 
-        let mut repo = MockProfileRespository::new();
-        let mut storage = MockVerificationKeysStorage::new();
-        let mut code_generator = MockCodeGenerator::new();
-        let mut mailer = MockVerificationMailer::new();
+        let (mut password_hasher, mut code_generator, mut storage, mut repo, mut mailer) =
+            get_dependencies();
+
+        let mut user_with_hashed_password = user.clone();
+        user_with_hashed_password.password = "hashed".to_string();
 
         repo.expect_save_user()
-            .with(predicate::eq(user.clone()))
+            .with(predicate::eq(user_with_hashed_password.to_owned()))
             .return_once(|_| Ok(()));
         code_generator
             .expect_generate()
@@ -347,17 +379,22 @@ mod test {
                 predicate::eq(test_code.clone()),
             )
             .return_once(move |_, __| Ok(()));
+        password_hasher
+            .expect_hash_password()
+            .with(predicate::eq(user.password.clone()))
+            .return_once(|_| Ok("hashed".to_string()));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
-        let result = interactor.create_user(&user).await;
+        let result = interactor.create_user(&mut user).await;
 
         assert_eq!(result, Ok(()));
     }
 
     #[actix_rt::test]
     async fn should_return_error_if_cannot_save_user() {
-        let user = CreateUserModel {
+        let mut user = CreateUserModel {
             email: "test@test.com".to_string(),
             password: "testPassword".to_string(),
             username: "testName".to_string(),
@@ -370,18 +407,23 @@ mod test {
         };
         let clone = failure.clone();
 
-        let mut repo = MockProfileRespository::new();
-        let storage = MockVerificationKeysStorage::new();
-        let code_generator = MockCodeGenerator::new();
-        let mailer = MockVerificationMailer::new();
+        let (mut password_hasher, code_generator, storage, mut repo, mailer) = get_dependencies();
+
+        let mut user_with_hashed_password = user.clone();
+        user_with_hashed_password.password = "hashed".to_string();
 
         repo.expect_save_user()
-            .with(predicate::eq(user.clone()))
+            .with(predicate::eq(user_with_hashed_password.to_owned()))
             .return_once(move |_| Err(clone));
+        password_hasher
+            .expect_hash_password()
+            .with(predicate::eq(user.password.clone()))
+            .return_once(|_| Ok("hashed".to_string()));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
-        let result = interactor.create_user(&user).await;
+        let result = interactor.create_user(&mut user).await;
 
         assert_eq!(result, Err(failure.clone()))
     }
@@ -399,10 +441,7 @@ mod test {
         };
         let copy = failure.clone();
 
-        let repo = MockProfileRespository::new();
-        let mut storage = MockVerificationKeysStorage::new();
-        let mut code_generator = MockCodeGenerator::new();
-        let mailer = MockVerificationMailer::new();
+        let (password_hasher, mut code_generator, mut storage, repo, mailer) = get_dependencies();
 
         code_generator
             .expect_generate()
@@ -412,7 +451,8 @@ mod test {
             .with(predicate::eq(email.clone()), predicate::eq(test_code))
             .return_once(move |_, __| Err(copy));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.send_verification_email(&email).await;
 
@@ -432,10 +472,8 @@ mod test {
         };
         let copy = failure.clone();
 
-        let repo = MockProfileRespository::new();
-        let mut storage = MockVerificationKeysStorage::new();
-        let mut code_generator = MockCodeGenerator::new();
-        let mut mailer = MockVerificationMailer::new();
+        let (password_hasher, mut code_generator, mut storage, repo, mut mailer) =
+            get_dependencies();
 
         code_generator
             .expect_generate()
@@ -455,7 +493,8 @@ mod test {
             )
             .return_once(move |_, __| Err(copy));
 
-        let interactor = ProfileInteractor::new(repo, code_generator, storage, mailer);
+        let interactor =
+            ProfileInteractor::new(repo, code_generator, storage, mailer, password_hasher);
 
         let result = interactor.send_verification_email(&email).await;
 

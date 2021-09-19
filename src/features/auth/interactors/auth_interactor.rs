@@ -28,10 +28,9 @@ pub trait AuthDataRepository {
     async fn get_auth_data(&self, login: &String) -> Result<AuthData, Failure>;
 }
 
-pub trait PasswordManager {
-    fn hash_password(&self, password: &String) -> Result<String, Failure>;
-
-    fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure>;
+#[async_trait]
+pub trait PasswordVerifier {
+    async fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure>;
 }
 
 pub struct AuthInteractor<T, Y, U, I> {
@@ -43,7 +42,7 @@ pub struct AuthInteractor<T, Y, U, I> {
 
 impl<T, Y, U, I> AuthInteractor<T, Y, U, I>
 where
-    T: PasswordManager,
+    T: PasswordVerifier,
     Y: TokenProvider,
     U: AuthDataRepository,
     I: AuthConfigProvider,
@@ -74,7 +73,8 @@ where
         let profile = self.auth_data_repository.get_auth_data(&login).await?;
         let is_password_valid = self
             .password_manager
-            .verify_password(&password, &profile.password)?;
+            .verify_password(&password, &profile.password)
+            .await?;
         if is_password_valid {
             let tokens = self
                 .token_provider
@@ -112,10 +112,8 @@ mod test {
         PasswordManager {}
 
         #[async_trait]
-        impl PasswordManager for PasswordManager {
-            fn hash_password(&self, password: &String) -> Result<String, Failure>;
-
-            fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure>;
+        impl PasswordVerifier for PasswordManager {
+            async fn verify_password(&self, password: &String, hash: &String) -> Result<bool, Failure>;
         }
     }
 
