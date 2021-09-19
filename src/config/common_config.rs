@@ -9,7 +9,7 @@ pub struct CommonConfig {
 impl CommonConfig {
     pub fn new() -> CommonConfig {
         let port = env::var("PORT").unwrap_or("7777".to_string());
-        let db_url = env::var("DB_URL")
+        let db_url = env::var("DATABASE_URL")
             .unwrap_or("postgres://postgres:postgres@localhost/vvvvv".to_string());
         let redis_url =
             env::var("REDIS_URL").unwrap_or("redis://:redis@127.0.0.1:6379".to_string());

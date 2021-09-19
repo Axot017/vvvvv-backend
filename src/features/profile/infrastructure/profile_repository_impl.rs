@@ -4,7 +4,7 @@ use crate::{
         domain::{create_user_model::CreateUserModel, user::User},
         errors::profile_errors::{
             get_db_connection_error, get_unique_violation_error, get_unknown_user_creation_error,
-            get_user_not_found_error,
+            get_unknown_user_update_error, get_user_not_found_error,
         },
         infrastructure::entities::profile_entity::ProfileEntity,
         interactors::profile_interactor::ProfileRepository,
@@ -18,7 +18,7 @@ use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::{Pool, PooledConnection};
 use schema::profile::dsl::*;
 
-use super::entities::new_profile::NewProfile;
+use super::entities::{new_profile::NewProfile, profile_changeset::ProfileChangeset};
 
 const UNIQUE_USERNAME_CONSTRAINT: &str = "profile_name_key";
 const UNIQUE_EMAIL_CONSTRAINT: &str = "profile_email_key";
@@ -96,7 +96,14 @@ impl ProfileRepository for ProfileRepositoryImpl {
     }
 
     async fn update_user(&self, user: &User) -> Result<(), Failure> {
-        let _ = user;
-        todo!()
+        let connection = self.get_connection()?;
+        let changeset = ProfileChangeset::from(user.to_owned());
+        let target = profile.filter(id.eq(user.id));
+        let result = diesel::update(target).set(&changeset).execute(&connection);
+
+        return match result {
+            Ok(_) => Ok(()),
+            Err(_) => Err(get_unknown_user_update_error()),
+        };
     }
 }

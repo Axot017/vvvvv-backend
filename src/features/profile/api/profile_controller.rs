@@ -42,6 +42,7 @@ pub fn configure_profile_controller(interactor: Arc<Interactor>, config: &mut Se
             .app_data(Data::from(interactor))
             .service(get_current_user)
             .service(resend_email)
+            .service(verify_user)
             .service(create_user),
     );
 }

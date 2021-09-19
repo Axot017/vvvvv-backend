@@ -25,6 +25,7 @@ impl Into<User> for ProfileEntity {
             username: self.name,
             email: self.email,
             avatar_id: self.avatar_id,
+            birthday: self.birthday,
             verified_at: self.email_confirmed_at,
             updated_at: self.updated_at,
             created_at: self.created_at,
@@ -57,6 +58,7 @@ mod tests {
         assert_eq!(user.avatar_id, None);
         assert_eq!(user.created_at, now);
         assert_eq!(user.updated_at, now);
+        assert_eq!(user.birthday, None);
         assert_eq!(user.verified_at, Some(now));
         assert_eq!(user.email, "email".to_string());
         assert_eq!(user.username, "name".to_string());

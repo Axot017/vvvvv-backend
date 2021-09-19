@@ -168,6 +168,7 @@ mod test {
         let user = User {
             verified_at: None,
             avatar_id: None,
+            birthday: None,
             id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
@@ -207,6 +208,7 @@ mod test {
         let user = User {
             verified_at: None,
             avatar_id: None,
+            birthday: None,
             id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
@@ -238,6 +240,7 @@ mod test {
         let user = User {
             verified_at: None,
             avatar_id: None,
+            birthday: None,
             id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),
@@ -284,6 +287,7 @@ mod test {
         let user = User {
             verified_at: Some(Utc::now()),
             avatar_id: None,
+            birthday: None,
             id: 1,
             email: "test_email".to_string(),
             username: "test_username".to_string(),

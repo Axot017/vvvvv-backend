@@ -38,6 +38,15 @@ pub fn get_unknown_user_creation_error() -> Failure {
     };
 }
 
+pub fn get_unknown_user_update_error() -> Failure {
+    return Failure {
+        error_type: FailureType::Unknown,
+        args: None,
+        code: "error.unknown_user_update_error".to_string(),
+        message: "Unknown user update error".to_string(),
+    };
+}
+
 pub fn get_unique_violation_error(field: String) -> Failure {
     let mut args = HashMap::new();
     args.insert("field".to_string(), field.clone());
