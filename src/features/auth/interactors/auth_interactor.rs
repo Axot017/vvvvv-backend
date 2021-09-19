@@ -3,8 +3,8 @@ use crate::{
     features::auth::{
         domain::{auth_data::AuthData, tokens_pair::TokensPair, user_role::UserRole},
         errors::{
+            auth_errors::get_invalid_credentials_error,
             client_secret_errors::get_client_secret_error,
-            login_errors::get_invalid_credentials_error,
         },
     },
 };
@@ -12,12 +12,11 @@ use crate::{
 use async_trait::async_trait;
 
 pub trait TokenProvider {
-    fn generate_token(&self, uuid: &String, role: &UserRole) -> Result<TokensPair, Failure>;
+    fn generate_token(&self, id: &i64, role: &UserRole) -> Result<TokensPair, Failure>;
 
-    fn validate_access_token(&self, access_token: &String) -> Result<(String, UserRole), Failure>;
+    fn validate_access_token(&self, access_token: &String) -> Result<(i64, UserRole), Failure>;
 
-    fn validate_refresh_token(&self, refresh_token: &String)
-        -> Result<(String, UserRole), Failure>;
+    fn validate_refresh_token(&self, refresh_token: &String) -> Result<(i64, UserRole), Failure>;
 }
 
 pub trait AuthConfigProvider {
@@ -79,7 +78,7 @@ where
         if is_password_valid {
             let tokens = self
                 .token_provider
-                .generate_token(&profile.uuid, &profile.user_role)?;
+                .generate_token(&profile.id, &profile.user_role)?;
 
             Ok(tokens)
         } else {
@@ -88,9 +87,9 @@ where
     }
 
     pub async fn refresh(&self, refresh_token: &String) -> Result<TokensPair, Failure> {
-        let (uuid, role) = self.token_provider.validate_refresh_token(&refresh_token)?;
+        let (id, role) = self.token_provider.validate_refresh_token(&refresh_token)?;
 
-        let tokens = self.token_provider.generate_token(&uuid, &role)?;
+        let tokens = self.token_provider.generate_token(&id, &role)?;
 
         Ok(tokens)
     }
@@ -124,11 +123,11 @@ mod test {
         TokenProvider {}
 
         impl TokenProvider for TokenProvider {
-            fn generate_token(&self, uuid: &String, role: &UserRole) -> Result<TokensPair, Failure>;
+            fn generate_token(&self, id: &i64, role: &UserRole) -> Result<TokensPair, Failure>;
 
-            fn validate_access_token(&self, access_token: &String) -> Result<(String, UserRole), Failure>;
+            fn validate_access_token(&self, access_token: &String) -> Result<(i64, UserRole), Failure>;
 
-            fn validate_refresh_token(&self, refresh_token: &String) -> Result<(String, UserRole), Failure>;
+            fn validate_refresh_token(&self, refresh_token: &String) -> Result<(i64, UserRole), Failure>;
         }
     }
 
@@ -240,8 +239,8 @@ mod test {
             password: "hash".to_string(),
             user_role: UserRole::USER,
             username: "username".to_string(),
-            uuid: "uuid".to_string(),
-            verified_at: Utc::now(),
+            id: 1,
+            verified_at: Some(Utc::now()),
         };
         let failure_clone = failure.clone();
 
@@ -281,8 +280,8 @@ mod test {
             password: "hash".to_string(),
             user_role: UserRole::USER,
             username: "username".to_string(),
-            uuid: "uuid".to_string(),
-            verified_at: Utc::now(),
+            id: 1,
+            verified_at: Some(Utc::now()),
         };
 
         let mut password_manager = MockPasswordManager::new();
@@ -327,8 +326,8 @@ mod test {
             password: "hash".to_string(),
             user_role: UserRole::USER,
             username: "username".to_string(),
-            uuid: "uuid".to_string(),
-            verified_at: Utc::now(),
+            id: 1,
+            verified_at: Some(Utc::now()),
         };
         let failure_clone = failure.clone();
 
@@ -349,10 +348,7 @@ mod test {
             .return_once(move |_, __| Ok(true));
         token_provider
             .expect_generate_token()
-            .with(
-                predicate::eq("uuid".to_string()),
-                predicate::eq(UserRole::USER),
-            )
+            .with(predicate::eq(1), predicate::eq(UserRole::USER))
             .return_once(move |_, __| Err(failure_clone));
         let interactor = AuthInteractor::new(
             password_manager,
@@ -375,8 +371,8 @@ mod test {
             password: "hash".to_string(),
             user_role: UserRole::USER,
             username: "username".to_string(),
-            uuid: "uuid".to_string(),
-            verified_at: Utc::now(),
+            id: 1,
+            verified_at: Some(Utc::now()),
         };
         let tokens_pair = TokensPair {
             access_token: "access_token".to_string(),
@@ -403,10 +399,7 @@ mod test {
             .return_once(move |_, __| Ok(true));
         token_provider
             .expect_generate_token()
-            .with(
-                predicate::eq("uuid".to_string()),
-                predicate::eq(UserRole::USER),
-            )
+            .with(predicate::eq(1), predicate::eq(UserRole::USER))
             .return_once(move |_, __| Ok(tokens_pair_clone));
         let interactor = AuthInteractor::new(
             password_manager,
@@ -469,13 +462,10 @@ mod test {
         token_provider
             .expect_validate_refresh_token()
             .with(predicate::eq("refresh_token".to_string()))
-            .return_once(|_| Ok(("uuid".to_string(), UserRole::USER)));
+            .return_once(|_| Ok((1, UserRole::USER)));
         token_provider
             .expect_generate_token()
-            .with(
-                predicate::eq("uuid".to_string()),
-                predicate::eq(UserRole::USER),
-            )
+            .with(predicate::eq(1), predicate::eq(UserRole::USER))
             .return_once(move |_, __| Err(failure_clone));
         let interactor = AuthInteractor::new(
             password_manager,
@@ -506,13 +496,10 @@ mod test {
         token_provider
             .expect_validate_refresh_token()
             .with(predicate::eq("refresh_token".to_string()))
-            .return_once(|_| Ok(("uuid".to_string(), UserRole::USER)));
+            .return_once(|_| Ok((1, UserRole::USER)));
         token_provider
             .expect_generate_token()
-            .with(
-                predicate::eq("uuid".to_string()),
-                predicate::eq(UserRole::USER),
-            )
+            .with(predicate::eq(1), predicate::eq(UserRole::USER))
             .return_once(move |_, __| Ok(tokens_pair_clone));
         let interactor = AuthInteractor::new(
             password_manager,

@@ -54,12 +54,12 @@ async fn main() -> std::io::Result<()> {
     let pool = r2d2::Pool::new(manager).unwrap();
     let redis_client = redis::Client::open(common_config.redis_url).unwrap();
     let redis_connection = redis_client
-        .get_multiplexed_async_std_connection()
+        .get_multiplexed_tokio_connection()
         .await
         .unwrap();
 
     let profile_interactor = get_profile_interactor(pool.clone(), redis_connection.clone());
-    let auth_interactor = get_auth_interactor();
+    let auth_interactor = get_auth_interactor(pool.clone());
 
     HttpServer::new(move || {
         App::new().service(
@@ -75,11 +75,11 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-fn get_auth_interactor() -> Arc<Auth> {
+fn get_auth_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Arc<Auth> {
     let interactor = AuthInteractor::new(
         PasswordManagerImpl::new(),
         JwtTokenProvider::new(AuthConfig::new()),
-        AuthDataRepositoryImpl::new(),
+        AuthDataRepositoryImpl::new(pool),
         AuthConfig::new(),
     );
 

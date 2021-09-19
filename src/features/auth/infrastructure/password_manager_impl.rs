@@ -22,7 +22,7 @@ impl PasswordManager for PasswordManagerImpl {
 
         return match hashed {
             Ok(hashed) => Ok(hashed),
-            Err(_) => Err(get_password_verification_error()),
+            Err(_) => Err(get_password_hashing_error()),
         };
     }
 
@@ -31,7 +31,7 @@ impl PasswordManager for PasswordManagerImpl {
 
         return match result {
             Ok(result) => Ok(result),
-            Err(_) => Err(get_password_hashing_error()),
+            Err(_) => Err(get_password_verification_error()),
         };
     }
 }

@@ -26,18 +26,18 @@ impl JwtTokenProvider {
 }
 
 impl TokenProvider for JwtTokenProvider {
-    fn generate_token(&self, uuid: &String, role: &UserRole) -> Result<TokensPair, Failure> {
+    fn generate_token(&self, id: &i64, role: &UserRole) -> Result<TokensPair, Failure> {
         let access_token_claims = TokenClaims {
             authorized: true,
             user_role: String::from(role),
-            user_uuid: uuid.clone(),
+            user_id: id.to_owned(),
             exp: (Utc::now().timestamp().unsigned_abs() + self.auth_config.access_token_exp)
                 as usize,
         };
         let refresh_token_claims = TokenClaims {
             authorized: true,
             user_role: String::from(role),
-            user_uuid: uuid.clone(),
+            user_id: id.to_owned(),
             exp: (Utc::now().timestamp().unsigned_abs() + self.auth_config.refresh_token_exp)
                 as usize,
         };
@@ -64,7 +64,7 @@ impl TokenProvider for JwtTokenProvider {
         };
     }
 
-    fn validate_access_token(&self, access_token: &String) -> Result<(String, UserRole), Failure> {
+    fn validate_access_token(&self, access_token: &String) -> Result<(i64, UserRole), Failure> {
         let token = decode::<TokenClaims>(
             access_token,
             &DecodingKey::from_secret(self.auth_config.private_key.as_ref()),
@@ -75,7 +75,7 @@ impl TokenProvider for JwtTokenProvider {
             Ok(token) => {
                 return if token.claims.authorized {
                     Ok((
-                        token.claims.user_uuid,
+                        token.claims.user_id,
                         UserRole::from(token.claims.user_role.as_str()),
                     ))
                 } else {
@@ -86,10 +86,7 @@ impl TokenProvider for JwtTokenProvider {
         };
     }
 
-    fn validate_refresh_token(
-        &self,
-        refresh_token: &String,
-    ) -> Result<(String, UserRole), Failure> {
+    fn validate_refresh_token(&self, refresh_token: &String) -> Result<(i64, UserRole), Failure> {
         let token = decode::<TokenClaims>(
             refresh_token,
             &DecodingKey::from_secret(self.auth_config.private_key.as_ref()),
@@ -100,7 +97,7 @@ impl TokenProvider for JwtTokenProvider {
             Ok(token) => {
                 return if !token.claims.authorized {
                     Ok((
-                        token.claims.user_uuid,
+                        token.claims.user_id,
                         UserRole::from(token.claims.user_role.as_str()),
                     ))
                 } else {

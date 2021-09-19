@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use actix_web::{
-    http::StatusCode,
     post,
     web::{self, Data, ServiceConfig},
     HttpResponse, Responder,
@@ -19,7 +18,9 @@ use crate::{
     },
 };
 
-use super::dtos::{login_dto::LoginDto, refresh_token_dto::RefreshTokenDto};
+use super::dtos::{
+    login_dto::LoginDto, refresh_token_dto::RefreshTokenDto, tokens_pair_dto::TokensPairDto,
+};
 
 type Interactor =
     AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataRepositoryImpl, AuthConfig>;
@@ -44,7 +45,7 @@ async fn login(interactor: web::Data<Interactor>, dto: web::Form<LoginDto>) -> i
     let result = interactor.login(&dto.login, &dto.password).await;
 
     match result {
-        Ok(_) => HttpResponse::new(StatusCode::OK),
+        Ok(tokens) => HttpResponse::Ok().json(TokensPairDto::from(tokens)),
         Err(err) => handle_failure(err),
     }
 }
@@ -63,7 +64,7 @@ async fn refresh(
     let result = interactor.refresh(&dto.token).await;
 
     match result {
-        Ok(_) => HttpResponse::new(StatusCode::OK),
+        Ok(tokens) => HttpResponse::Ok().json(TokensPairDto::from(tokens)),
         Err(err) => handle_failure(err),
     }
 }

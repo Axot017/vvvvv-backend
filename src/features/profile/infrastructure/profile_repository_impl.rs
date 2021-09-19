@@ -1,3 +1,4 @@
+use crate::schema::profile::dsl::*;
 use crate::{
     common::failure::domain::failure::Failure,
     features::profile::{
@@ -9,14 +10,12 @@ use crate::{
         infrastructure::entities::profile_entity::ProfileEntity,
         interactors::profile_interactor::ProfileRepository,
     },
-    schema,
 };
 use async_trait::async_trait;
 use diesel::result::Error::DatabaseError;
 use diesel::{prelude::*, result::DatabaseErrorKind};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use r2d2::{Pool, PooledConnection};
-use schema::profile::dsl::*;
 
 use super::entities::{new_profile::NewProfile, profile_changeset::ProfileChangeset};
 
