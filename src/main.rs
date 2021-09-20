@@ -8,9 +8,10 @@ extern crate diesel;
 extern crate chrono;
 extern crate r2d2;
 
-use std::sync::Arc;
-
-use actix_web::{web, App, HttpServer};
+use actix_web::{
+    web::{self, Data},
+    App, HttpServer,
+};
 use config::{auth_config::AuthConfig, common_config::CommonConfig, profile_config::ProfileConfig};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 use features::{
@@ -50,7 +51,6 @@ type Auth =
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let common_config = CommonConfig::new();
-
     let manager = ConnectionManager::<PgConnection>::new(common_config.db_url);
     let pool = r2d2::Pool::new(manager).unwrap();
     let redis_client = redis::Client::open(common_config.redis_url).unwrap();
@@ -59,16 +59,21 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
 
-    let profile_interactor = get_profile_interactor(pool.clone(), redis_connection.clone());
-    let auth_interactor = get_auth_interactor(pool.clone());
+    let profile_interactor = Data::new(get_profile_interactor(
+        pool.clone(),
+        redis_connection.clone(),
+    ));
+    let auth_interactor = Data::new(get_auth_interactor(pool.clone()));
 
     HttpServer::new(move || {
         App::new().service(
             web::scope("/api")
+                .app_data(profile_interactor.clone())
+                .app_data(auth_interactor.clone())
                 .configure(|cfg| {
-                    configure_profile_controller(profile_interactor.clone(), cfg);
+                    configure_profile_controller(cfg);
                 })
-                .configure(|cfg| configure_auth_controller(auth_interactor.clone(), cfg)),
+                .configure(|cfg| configure_auth_controller(cfg)),
         )
     })
     .bind(format!("127.0.0.1:{}", common_config.port))?
@@ -76,7 +81,7 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-fn get_auth_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Arc<Auth> {
+fn get_auth_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Auth {
     let interactor = AuthInteractor::new(
         PasswordManagerImpl::new(),
         JwtTokenProvider::new(AuthConfig::new()),
@@ -84,13 +89,13 @@ fn get_auth_interactor(pool: Pool<ConnectionManager<PgConnection>>) -> Arc<Auth>
         AuthConfig::new(),
     );
 
-    Arc::new(interactor)
+    interactor
 }
 
 fn get_profile_interactor(
     pool: Pool<ConnectionManager<PgConnection>>,
     redis_connection: MultiplexedConnection,
-) -> Arc<Profile> {
+) -> Profile {
     let password_manager = PasswordManagerImpl::new();
     let config = ProfileConfig::new();
     let code_generator = VerificationCodeGenerator::new();
@@ -105,5 +110,5 @@ fn get_profile_interactor(
         password_manager,
     );
 
-    Arc::new(interactor)
+    interactor
 }

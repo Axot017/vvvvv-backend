@@ -1,11 +1,11 @@
 use crate::{
     common::failure::domain::failure::Failure,
     features::auth::{
-        domain::{auth_data::AuthData, tokens_pair::TokensPair, user_role::UserRole},
-        errors::{
-            auth_errors::get_invalid_credentials_error,
-            client_secret_errors::get_client_secret_error,
+        domain::{
+            auth_data::AuthData, current_user_data::CurrentUserData, tokens_pair::TokensPair,
+            user_role::UserRole,
         },
+        errors::auth_errors::{get_client_secret_error, get_invalid_credentials_error},
     },
 };
 
@@ -93,6 +93,14 @@ where
 
         Ok(tokens)
     }
+
+    pub async fn validate_access_token(
+        &self,
+        access_token: &String,
+    ) -> Result<CurrentUserData, Failure> {
+        let (id, role) = self.token_provider.validate_access_token(access_token)?;
+        return Ok(CurrentUserData { id, role });
+    }
 }
 
 #[cfg(test)]
@@ -101,10 +109,7 @@ mod test {
     use chrono::Utc;
     use mockall::{mock, predicate};
 
-    use crate::{
-        common::failure::domain::failure::FailureType,
-        features::auth::errors::client_secret_errors::get_client_secret_error,
-    };
+    use crate::common::failure::domain::failure::FailureType;
 
     use super::*;
 
@@ -509,5 +514,35 @@ mod test {
         let result = interactor.refresh(&"refresh_token".to_string()).await;
 
         assert_eq!(result, Ok(tokens_pair));
+    }
+
+    #[actix_rt::test]
+    async fn should_validate_access_token() {
+        let password_manager = MockPasswordManager::new();
+        let auth_data_repository = MockAuthDataRepository::new();
+        let auth_config_provider = MockAuthConfigProvider::new();
+        let mut token_provider = MockTokenProvider::new();
+        token_provider
+            .expect_validate_access_token()
+            .with(predicate::eq("access_token".to_string()))
+            .return_once(|_| Ok((1, UserRole::USER)));
+        let interactor = AuthInteractor::new(
+            password_manager,
+            token_provider,
+            auth_data_repository,
+            auth_config_provider,
+        );
+
+        let result = interactor
+            .validate_access_token(&"access_token".to_string())
+            .await;
+
+        assert_eq!(
+            result,
+            Ok(CurrentUserData {
+                id: 1,
+                role: UserRole::USER,
+            })
+        )
     }
 }

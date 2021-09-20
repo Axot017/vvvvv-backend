@@ -1,9 +1,13 @@
+use actix_web::{http::StatusCode, ResponseError};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
-use super::domain::failure::Failure;
+use super::{
+    domain::failure::{Failure, FailureType},
+    failure_handler::handle_failure,
+};
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct FailureDto {
     message: String,
     code: String,
@@ -18,6 +22,29 @@ impl FailureDto {
             code: failure.code,
             args,
         }
+    }
+}
+
+impl Display for Failure {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return Ok(());
+    }
+}
+
+impl ResponseError for Failure {
+    fn status_code(&self) -> StatusCode {
+        match self.error_type {
+            FailureType::Validation => StatusCode::BAD_REQUEST,
+            FailureType::Authentication => StatusCode::UNAUTHORIZED,
+            FailureType::Forbidden => StatusCode::FORBIDDEN,
+            FailureType::NotFound => StatusCode::NOT_FOUND,
+            FailureType::Conflict => StatusCode::CONFLICT,
+            FailureType::Unknown => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    fn error_response(&self) -> actix_web::HttpResponse {
+        handle_failure(self.to_owned())
     }
 }
 

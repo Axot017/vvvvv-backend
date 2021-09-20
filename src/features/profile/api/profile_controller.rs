@@ -1,20 +1,23 @@
-use std::sync::Arc;
-
 use actix_web::{
     get,
     http::StatusCode,
     post,
-    web::{self, Data, ServiceConfig},
-    HttpResponse, Responder,
+    web::{self, ServiceConfig},
+    HttpRequest, HttpResponse, Responder,
 };
+use actix_web_httpauth::middleware::HttpAuthentication;
 
 use crate::{
     common::failure::failure_handler::handle_failure,
     features::{
-        auth::infrastructure::password_manager_impl::PasswordManagerImpl,
+        auth::{
+            api::auth_middleware::verify_current_user, domain::current_user_data::CurrentUserData,
+            infrastructure::password_manager_impl::PasswordManagerImpl,
+        },
         mailer::mailer::Mailer,
         profile::{
             domain::create_user_model::CreateUserModel,
+            errors::profile_errors::get_user_not_found_error,
             infrastructure::{
                 profile_repository_impl::ProfileRepositoryImpl,
                 verification_keys_storage_impl::VerificationKeysStorageImpl,
@@ -38,11 +41,15 @@ type Interactor = ProfileInteractor<
     PasswordManagerImpl,
 >;
 
-pub fn configure_profile_controller(interactor: Arc<Interactor>, config: &mut ServiceConfig) {
+pub fn configure_profile_controller(config: &mut ServiceConfig) {
+    let auth_middleware = HttpAuthentication::bearer(verify_current_user);
     config.service(
         web::scope("/profile")
-            .app_data(Data::from(interactor))
-            .service(get_current_user)
+            .service(
+                web::scope("/me")
+                    .wrap(auth_middleware)
+                    .service(get_current_user),
+            )
             .service(resend_email)
             .service(verify_user)
             .service(create_user),
@@ -73,12 +80,22 @@ async fn verify_user(
     }
 }
 
-#[get("/current")]
-async fn get_current_user(interactor: web::Data<Interactor>) -> impl Responder {
-    let result = interactor.get_user(&1).await;
-    match result {
-        Ok(user) => HttpResponse::Ok().json(UserDto::from(user)),
-        Err(err) => handle_failure(err),
+#[get("")]
+async fn get_current_user(
+    interactor: web::Data<Interactor>,
+    request: HttpRequest,
+) -> impl Responder {
+    let ext = request.extensions();
+    let current_user = ext.get::<CurrentUserData>();
+    match current_user {
+        None => handle_failure(get_user_not_found_error()),
+        Some(current_user) => {
+            let result = interactor.get_user(&current_user.id).await;
+            match result {
+                Ok(user) => HttpResponse::Ok().json(UserDto::from(user)),
+                Err(err) => handle_failure(err),
+            }
+        }
     }
 }
 

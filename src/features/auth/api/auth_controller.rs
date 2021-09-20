@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use actix_web::{
     post,
-    web::{self, Data, ServiceConfig},
+    web::{self, ServiceConfig},
     HttpResponse, Responder,
 };
 
@@ -25,13 +23,8 @@ use super::dtos::{
 type Interactor =
     AuthInteractor<PasswordManagerImpl, JwtTokenProvider, AuthDataRepositoryImpl, AuthConfig>;
 
-pub fn configure_auth_controller(interactor: Arc<Interactor>, config: &mut ServiceConfig) {
-    config.service(
-        web::scope("/auth")
-            .app_data(Data::from(interactor))
-            .service(login)
-            .service(refresh),
-    );
+pub fn configure_auth_controller(config: &mut ServiceConfig) {
+    config.service(web::scope("/auth").service(login).service(refresh));
 }
 
 #[post("/login")]
